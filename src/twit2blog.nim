@@ -4,4 +4,5 @@
 import twit2blogpkg/twitter
 
 when isMainModule:
-  echo "weskerfoot".listTweets.repr
+  #echo "weskerfoot".listTweets.repr
+  echo "1207676036995002368".getTweet.repr

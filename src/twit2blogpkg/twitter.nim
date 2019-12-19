@@ -31,15 +31,25 @@ proc getToken*() : string =
 
   "Bearer " & response["access_token"].getStr
 
-
-proc listTweets*(user : string) : JsonNode =
+proc tweetClient() : HttpClient =
   var client = newHttpClient()
-  let reqTarget = fmt"/1.1/statuses/user_timeline.json?count=100&screen_name={user}"
-  let url = fmt"https://api.twitter.com{reqTarget}"
   client.headers = newHttpHeaders(
     {
       "Authorization" : getToken()
     }
   )
+  client
+
+proc listTweets*(user : string) : JsonNode =
+  var client = tweetClient()
+  let reqTarget = fmt"/1.1/statuses/user_timeline.json?count=100&screen_name={user}"
+  let url = fmt"https://api.twitter.com{reqTarget}"
+
+  client.request(url, httpMethod = HttpGet).body.parseJson
+
+proc getTweet*(tweetID : string) : JsonNode =
+  var client = tweetClient()
+  let reqTarget = fmt"/1.1/statuses/show.json?id={tweetID}"
+  let url = fmt"https://api.twitter.com{reqTarget}"
 
   client.request(url, httpMethod = HttpGet).body.parseJson
