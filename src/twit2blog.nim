@@ -5,4 +5,5 @@ import twit2blogpkg/twitter
 
 when isMainModule:
   #echo "weskerfoot".listTweets.repr
-  echo "1207676036995002368".getTweet.repr
+  for tweet in "1207100533166804993".getThread("weskerfoot"):
+    echo tweet

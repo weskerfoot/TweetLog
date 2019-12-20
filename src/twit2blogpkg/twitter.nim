@@ -1,9 +1,4 @@
-# This is just an example to get you started. Users of your hybrid library will
-# import this file by writing ``import twit2blogpkg/submodule``. Feel free to rename or
-# remove this file altogether. You may create additional modules alongside
-# this file as required.
-
-import httpClient, base64, uri, json, os, strformat
+import httpClient, base64, uri, json, os, strformat, sequtils
 
 proc buildAuthHeader() : string =
   let consumerKey = "TWITTER_CONSUMER_KEY".getEnv
@@ -41,15 +36,32 @@ proc tweetClient() : HttpClient =
   client
 
 proc listTweets*(user : string) : JsonNode =
-  var client = tweetClient()
+  let client = tweetClient()
   let reqTarget = fmt"/1.1/statuses/user_timeline.json?count=100&screen_name={user}"
   let url = fmt"https://api.twitter.com{reqTarget}"
 
   client.request(url, httpMethod = HttpGet).body.parseJson
 
-proc getTweet*(tweetID : string) : JsonNode =
-  var client = tweetClient()
-  let reqTarget = fmt"/1.1/statuses/show.json?id={tweetID}"
+proc getTweet*(tweetID : string) : string =
+  let client = tweetClient()
+  let reqTarget = fmt"/1.1/statuses/show.json?id={tweetID}&tweet_mode=extended"
   let url = fmt"https://api.twitter.com{reqTarget}"
 
-  client.request(url, httpMethod = HttpGet).body.parseJson
+  client.request(url, httpMethod = HttpGet).body
+
+proc getThread*(tweetStart : string, user : string) : seq[string] =
+  let parsed = tweetStart.getTweet.parseJson
+
+  let nextTweetID = parsed{"in_reply_to_status_id_str"}.getStr()
+
+  if nextTweetID == "":
+    if parsed{"user"}{"screen_name"}.getStr() == user:
+      return @[parsed{"full_text"}.getStr()]
+    else:
+      return @[]
+  else:
+    if parsed{"user"}{"screen_name"}.getStr() == user:
+      return nextTweetID.getThread(user) & @[parsed{"full_text"}.getStr()]
+    else:
+      return nextTweetID.getThread(user)
+
