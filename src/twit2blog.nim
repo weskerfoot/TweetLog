@@ -1,4 +1,4 @@
-import twit2blogpkg/twitter
+import twit2blogpkg/twitter, twit2blogpkg/help
 import os, system, parseopt, strutils, tables
 
 when isMainModule:
@@ -12,6 +12,8 @@ when isMainModule:
     case args.kind
       of cmdEnd: break
       of cmdShortOption, cmdLongOption:
+        if (args.key == "help") or (args.key == "h"):
+          writeHelp()
         if args.val == "":
           continue
         else:
@@ -27,7 +29,6 @@ when isMainModule:
     twitterParams["thread"] = twitterParams["t"]
 
   if not (twitterParams.hasKey("user") and twitterParams.hasKey("thread")):
-    stderr.writeLine("Invalid Arguments. Must provide both --user and --thread (or -u and -t). E.g. -u:foo -t:123")
-    quit(1)
+    writeHelp()
 
   echo twitterParams["thread"].renderThread(twitterParams["user"])
