@@ -10,4 +10,6 @@ Requires `TWITTER_CONSUMER_KEY` and `TWITTER_CONSUMER_SECRET`, both of which you
 
 Example: `twit2blog -t:1234 -u:alice | pandoc --from=markdown --to=html > thread.html`
 
-You can see a sample [here](https://wesk.tech/tweet_example.html)
+You must provide the ID of the *last* tweet from the thread you want rendered. E.g. [https://twitter.com/weskerfoot/status/1199466868953759750](https://twitter.com/weskerfoot/status/1199466868953759750) is the last tweet in one of my threads. The reason for this is that the twitter API does not provide an easy way to search for replies to a given tweet.
+
+You can see the output generated from it [here](https://wesk.tech/tweet_example.html)
