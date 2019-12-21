@@ -55,12 +55,12 @@ proc getThread*(tweetStart : string, user : string) : seq[string] =
   let nextTweetID = parsed{"in_reply_to_status_id_str"}.getStr()
 
   if nextTweetID == "":
-    if parsed{"user"}{"screen_name"}.getStr() == user:
+    if parsed{"user", "screen_name"}.getStr() == user:
       return @[parsed{"full_text"}.getStr()]
     else:
       return @[]
   else:
-    if parsed{"user"}{"screen_name"}.getStr() == user:
+    if parsed{"user", "screen_name"}.getStr() == user:
       return nextTweetID.getThread(user) & @[parsed{"full_text"}.getStr()]
     else:
       return nextTweetID.getThread(user)

@@ -1,9 +1,35 @@
-# This is just an example to get you started. A typical hybrid package
-# uses this file as the main entry point of the application.
-
 import twit2blogpkg/twitter
+import os, system, parseopt, strutils, tables
 
 when isMainModule:
-  #echo "weskerfoot".listTweets.repr
-  for tweet in "1207100533166804993".getThread("weskerfoot"):
+  var args = initOptParser(commandLineParams().join(" "))
+  var twitterParams = initTable[string, string]()
+  let validArgs = @["u", "t", "user", "thread"]
+  var currentKey : string
+
+  while true:
+    args.next()
+    case args.kind
+      of cmdEnd: break
+      of cmdShortOption, cmdLongOption:
+        if args.val == "":
+          continue
+        else:
+          if validArgs.contains(args.key):
+            twitterParams[args.key] = args.val
+      of cmdArgument:
+        if validArgs.contains(currentKey):
+          twitterParams[currentKey] = args.val
+
+  if twitterParams.hasKey("u"):
+    twitterParams["user"] = twitterParams["u"]
+  if twitterParams.hasKey("t"):
+    twitterParams["thread"] = twitterParams["t"]
+
+  if not (twitterParams.hasKey("user") and twitterParams.hasKey("thread")):
+    echo twitterParams
+    stderr.writeLine("Invalid Arguments.")
+    quit(1)
+
+  for tweet in twitterParams["thread"].getThread(twitterParams["user"]):
     echo tweet
