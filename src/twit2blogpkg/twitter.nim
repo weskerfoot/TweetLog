@@ -67,18 +67,19 @@ proc getThread*(tweetStart : string, user : string) : seq[string] =
 proc convertWords(tweet : string) : string =
   let words = tweet.split(" ")
   var stripped : seq[string]
-  for word in words:
-    if word.len > 3 and word[0..3] == "http":
-      let parsedUri = word.parseUri
-      let scheme = parsedUri.scheme
-      let hostname = parsedUri.hostname
-      let path = parsedUri.path
-      if (scheme.len > 0 and hostname.len > 0):
-        stripped &= fmt"[{scheme}://{hostname}{path}]({scheme}://{hostname}{path})"
-    elif word[0] != '@':
-      stripped &= word
-    else:
-      continue
+  for chunk in words:
+    for word in chunk.splitLines:
+      if word.len > 3 and word[0..3] == "http":
+        let parsedUri = word.parseUri
+        let scheme = parsedUri.scheme
+        let hostname = parsedUri.hostname
+        let path = parsedUri.path
+        if (scheme.len > 0 and hostname.len > 0):
+          stripped &= fmt"[{scheme}://{hostname}{path}]({scheme}://{hostname}{path})"
+      elif word.len > 0 and word[0] != '@':
+        stripped &= word
+      else:
+        continue
   stripped.join(" ")
 
 proc renderThread*(tweetID : string, user : string) : string =
