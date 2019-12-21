@@ -51,7 +51,6 @@ proc getTweet*(tweetID : string) : string =
 
 proc getThread*(tweetStart : string, user : string) : seq[string] =
   let parsed = tweetStart.getTweet.parseJson
-
   let nextTweetID = parsed{"in_reply_to_status_id_str"}.getStr()
 
   if nextTweetID == "":
