@@ -1,4 +1,4 @@
-import httpClient, base64, uri, json, os, strformat, sequtils
+import httpClient, base64, uri, json, os, strformat, sequtils, strutils
 
 proc buildAuthHeader() : string =
   let consumerKey = "TWITTER_CONSUMER_KEY".getEnv
@@ -65,3 +65,14 @@ proc getThread*(tweetStart : string, user : string) : seq[string] =
     else:
       return nextTweetID.getThread(user)
 
+proc stripAts(tweet : string) : string =
+  let words = tweet.split(" ")
+  var stripped : seq[string]
+  for word in words:
+    if word[0] != '@':
+      stripped &= word
+  stripped.join(" ")
+
+proc renderThread*(tweetID : string, user : string) : string =
+  let thread = tweetID.getThread(user).map(stripAts).map(capitalizeAscii).join("\n\n")
+  fmt"### By {user}" & "\n" & fmt"{thread}"

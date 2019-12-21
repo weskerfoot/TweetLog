@@ -30,5 +30,4 @@ when isMainModule:
     stderr.writeLine("Invalid Arguments. Must provide both --user and --thread (or -u and -t). E.g. -u:foo -t:123")
     quit(1)
 
-  for tweet in twitterParams["thread"].getThread(twitterParams["user"]):
-    echo tweet
+  echo twitterParams["thread"].renderThread(twitterParams["user"])
