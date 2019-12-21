@@ -5,8 +5,17 @@ A simple tool to help make it easier to turn your tweet rants into real blog pos
 ### Building
 `nimble build` is all you'll need at this point.
 
-### Running
+### Usage
 Requires `TWITTER_CONSUMER_KEY` and `TWITTER_CONSUMER_SECRET`, both of which you can only get if you have a registered developer account and an application created for twitter.
+
+  Usage: twit2blog [opts]
+
+  Options:
+    -u, --user   The screen name of the twitter user. E.g. If your twitter is https://twitter.com/foobar, then `foobar`.
+    -t, --thread The ID of the last tweet in your thread. E.g. 12345.
+
+  For more information read the Github readme:
+    https://github.com/weskerfoot/Twit2Blog#readme
 
 Example: `twit2blog -t:1234 -u:alice | pandoc --from=markdown --to=html > thread.html`
 
