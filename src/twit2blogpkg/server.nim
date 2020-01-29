@@ -22,8 +22,6 @@ var chan : Channel[ThreadRequest]
 # Max 20 items processing
 chan.open(20)
 
-var server = newAsyncHttpServer()
-
 let db = open("twit2blog.db", "", "", "")
 
 proc createTweetTable() =
@@ -60,7 +58,10 @@ get "/thread/:author/status/:threadID":
   if thread.isSome:
     respond thread.get.tweets
   else:
-    chan.send(ThreadRequest(tweetID: data{"threadID"}.getStr(), author: data{"author"}.getStr()))
+    chan.send(
+      ThreadRequest(tweetID: data{"threadID"}.getStr(),
+                    author: data{"author"}.getStr())
+    )
     respond "Hang on, we're grabbing your thread :) Come back to this page later."
 
 proc startServer* =
