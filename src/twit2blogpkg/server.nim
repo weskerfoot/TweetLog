@@ -1,4 +1,4 @@
-import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite
+import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite, strformat
 import twitter
 import xander
 
@@ -43,6 +43,14 @@ proc threadExists(threadID : string, author : string) : Option[TwitterThread] =
                   tweets: row[3])
   )
 
+iterator allAuthors() : string =
+  for author in db.getAllRows(sql"SELECT DISTINCT author FROM threads"):
+    yield author[0]
+
+iterator threadIDs(author : string) : string =
+  for threadID in db.getAllRows(sql"SELECT tid from threads WHERE author=?", author):
+    yield threadID[0]
+
 proc insertThread(thread : TwitterThread) =
   db.exec(sql"INSERT INTO threads (tid, author, tweets) VALUES (?, ?, ?)",
           thread.tweetID,
@@ -52,17 +60,29 @@ proc insertThread(thread : TwitterThread) =
 get "/thread/:author/status/:tweetID":
   let tweetID = data{"tweetID"}.getStr()
   let author = data{"author"}.getStr()
-
   let thread = threadExists(tweetID, author)
 
   if thread.isSome:
-    respond thread.get.tweets
+    data["title"] = fmt"Thread by {author}"
+    data["tweets"] = thread.get.tweets.split("\n")
+    respond tmplt("thread", data)
   else:
-    chan.send(
-      ThreadRequest(tweetID: data{"tweetID"}.getStr(),
-                    author: data{"author"}.getStr())
-    )
-    respond "Hang on, we're grabbing your thread :) Come back to this page later."
+    chan.send(ThreadRequest(tweetID: tweetID, author: author))
+    data["title"] = "Check back later"
+    respond tmplt("nonexistent", data)
+
+get "/":
+  # lists all authors
+  data["authors"] = allAuthors.toSeq
+  data["title"] = "Authors"
+  respond tmplt("authors", data)
+
+get "/author/:author/threads":
+  let author = data{"author"}.getStr()
+  data["author"] = author
+  data["title"] = fmt"Threads for {author}"
+  data["threads"] = toSeq(threadIDs(author))
+  respond tmplt("threads", data)
 
 proc startServer* =
   createTweetTable()
