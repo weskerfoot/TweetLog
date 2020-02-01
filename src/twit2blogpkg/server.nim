@@ -49,17 +49,17 @@ proc insertThread(thread : TwitterThread) =
           thread.author,
           thread.tweets)
 
-get "/thread/:author/status/:threadID":
-  let threadID = data{"threadID"}.getStr()
+get "/thread/:author/status/:tweetID":
+  let tweetID = data{"tweetID"}.getStr()
   let author = data{"author"}.getStr()
 
-  let thread = threadExists(threadID, author)
+  let thread = threadExists(tweetID, author)
 
   if thread.isSome:
     respond thread.get.tweets
   else:
     chan.send(
-      ThreadRequest(tweetID: data{"threadID"}.getStr(),
+      ThreadRequest(tweetID: data{"tweetID"}.getStr(),
                     author: data{"author"}.getStr())
     )
     respond "Hang on, we're grabbing your thread :) Come back to this page later."
@@ -75,10 +75,9 @@ proc handleRenders* =
   while true:
     let t : ThreadRequest = chan.recv()
 
-    if processing.contains(t.author & t.tweetID):
+    if processing.contains(t.author & t.tweetID) or threadExists(t.tweetID, t.author).isSome:
+      echo "It contained the item, so we're skipping it"
       continue
-
-    processing.incl(t.author & t.tweetID)
 
     let tweets = t.tweetID.renderThread(t.author)
 
@@ -88,3 +87,4 @@ proc handleRenders* =
                       author: t.author,
                       tweets: tweets.get.join("\n"))
       )
+      processing.excl(t.author & t.tweetID)
