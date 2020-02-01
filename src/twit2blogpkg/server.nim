@@ -1,4 +1,4 @@
-import strutils, sets, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite
+import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite
 import twitter
 import xander
 
@@ -70,13 +70,10 @@ proc startServer* =
   runForever(8080)
 
 proc handleRenders* =
-  var processing = initHashSet[string]()
-
   while true:
     let t : ThreadRequest = chan.recv()
-
-    if processing.contains(t.author & t.tweetID) or threadExists(t.tweetID, t.author).isSome:
-      echo "It contained the item, so we're skipping it"
+    if threadExists(t.tweetID, t.author).isSome:
+      echo "We already have this thread, so we're skipping it"
       continue
 
     let tweets = t.tweetID.renderThread(t.author)
@@ -87,4 +84,3 @@ proc handleRenders* =
                       author: t.author,
                       tweets: tweets.get.join("\n"))
       )
-      processing.excl(t.author & t.tweetID)
