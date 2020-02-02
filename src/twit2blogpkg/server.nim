@@ -3,10 +3,9 @@ import twitter
 import templates
 import jester
 
-type
-  ThreadRequest = object
-    tweetID: string
-    author: string
+type ThreadRequest = object
+  tweetID: string
+  author: string
 
 type TwitterThread = ref object of RootObj
   tweetID: string
@@ -90,6 +89,7 @@ proc startServer* =
   jester.serve()
 
 proc handleRenders* =
+  echo "Starting processing queue"
   while true:
     let t : ThreadRequest = chan.recv()
     if threadExists(t.tweetID, t.author).isSome:
