@@ -71,7 +71,7 @@ router twitblog:
       resp htmlgen.body(
         htmlgen.a(href=fmt"/author/{author}/threads", fmt"See all of {author}'s threads"),
         htmlgen.h4(title),
-        htmlgen.ul(tweets.map((t) => htmlgen.p(htmlgen.li(t))).join(""))
+        htmlgen.ul(tweets.map((t) => htmlgen.li(t)).join(""))
       )
     else:
       chan.send(ThreadRequest(tweetID: tweetID, author: author))
