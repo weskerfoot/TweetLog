@@ -1,6 +1,8 @@
 import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite, strformat
 import twitter
-import xander
+import jester
+
+from htmlgen import nil
 
 # one thread just receives messages with thread ID / username
 # thread then passes messages to worker threads in round-robin fashion
@@ -57,37 +59,61 @@ proc insertThread(thread : TwitterThread) =
           thread.author,
           thread.tweets)
 
-get "/thread/:author/status/:tweetID":
-  let tweetID = data{"tweetID"}.getStr()
-  let author = data{"author"}.getStr()
-  let thread = threadExists(tweetID, author)
+router twitblog:
+  get "/thread/@author/status/@tweetID":
+    let tweetID = @"tweetID"
+    let author = @"author"
+    let thread = threadExists(tweetID, author)
 
-  if thread.isSome:
-    data["title"] = fmt"Thread by {author}"
-    data["tweets"] = thread.get.tweets.split("\n")
-    respond tmplt("thread", data)
-  else:
-    chan.send(ThreadRequest(tweetID: tweetID, author: author))
-    data["title"] = "Check back later"
-    respond tmplt("nonexistent", data)
+    if thread.isSome:
+      let title = fmt"Thread by {author}"
+      let tweets = thread.get.tweets.split("\n")
+      resp htmlgen.body(
+        htmlgen.a(href=fmt"/author/{author}/threads", fmt"See all of {author}'s threads"),
+        htmlgen.h4(title),
+        htmlgen.ul(tweets.map((t) => htmlgen.p(htmlgen.li(t))).join(""))
+      )
+    else:
+      chan.send(ThreadRequest(tweetID: tweetID, author: author))
+      resp htmlgen.h4("Check back later")
 
-get "/":
-  # lists all authors
-  data["authors"] = allAuthors.toSeq
-  data["title"] = "Authors"
-  respond tmplt("authors", data)
+  get "/":
+    # lists all authors
+    let authors = allAuthors.toSeq
+    let title = "Authors"
+    resp htmlgen.body(
+      htmlgen.h4(title),
+      htmlgen.ul(
+        authors.map((author) =>
+          htmlgen.li(
+            htmlgen.a(href=fmt"/author/{author}/threads", author)
+          )
+        ).join("")
+      )
+    )
 
-get "/author/:author/threads":
-  let author = data{"author"}.getStr()
-  data["author"] = author
-  data["title"] = fmt"Threads for {author}"
-  data["threads"] = toSeq(threadIDs(author))
-  respond tmplt("threads", data)
+  get "/author/@author/threads":
+    let author = @"author"
+    let title = fmt"Threads for {author}"
+    let threads = toSeq(threadIDs(author))
+    resp htmlgen.body(
+      htmlgen.h4(title),
+      htmlgen.ul(
+        threads.map((thread) =>
+          htmlgen.li(
+            htmlgen.a(href=fmt"/thread/{author}/status/{thread}", thread)
+          )
+        ).join("")
+      )
+    )
 
 proc startServer* =
   createTweetTable()
   defer: db.close()
-  runForever(8080)
+  let port = 8080.Port
+  let settings = newSettings(port=port)
+  var jester = initJester(twitblog, settings=settings)
+  jester.serve()
 
 proc handleRenders* =
   while true:

@@ -13,4 +13,4 @@ bin           = @["twit2blog"]
 # Dependencies
 
 requires "nim >= 1.0.9", "regex"
-requires "https://github.com/sunjohanday/xander"
+requires "https://github.com/dom96/jester"
