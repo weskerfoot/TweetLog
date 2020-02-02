@@ -1,4 +1,4 @@
-import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite
+import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite, json
 import twitter
 import templates
 import jester
@@ -53,6 +53,25 @@ proc insertThread(thread : TwitterThread) =
           thread.tweets)
 
 router twitblog:
+  get "/":
+    # Lists all authors
+    let authors = allAuthors.toSeq
+    let title = "Authors"
+    resp authors.mainPage
+
+  post "/thread":
+    let params = request.formData
+    if not ("tweetID" in params and "author" in params):
+      resp "nope"
+
+    let tweetID = params["tweetID"].body
+    let author = params["author"].body
+
+    let thread = threadExists(tweetID, author)
+
+    chan.send(ThreadRequest(tweetID: tweetID, author: author))
+    resp checkBack()
+
   get "/thread/@author/status/@tweetID":
     let tweetID = @"tweetID"
     let author = @"author"
@@ -61,18 +80,12 @@ router twitblog:
     if thread.isSome:
       # Lists all the tweets in a thread
       let tweets = thread.get.tweets.split("\n")
-      resp renderThread(author, thread.get.tweets.split("\n"))
+      resp tweetThread(author, thread.get.tweets.split("\n"))
     else:
       # Send it off to the rendering thread for processing
       # Let them know to check back later
       chan.send(ThreadRequest(tweetID: tweetID, author: author))
       resp checkBack()
-
-  get "/":
-    # Lists all authors
-    let authors = allAuthors.toSeq
-    let title = "Authors"
-    resp authors.listAuthors
 
   get "/author/@author/threads":
     # Lists all threads by an author

@@ -1,11 +1,11 @@
 import strformat
 import karax / [karaxdsl, vdom]
 
-proc renderThread*(author : string,
-                   tweets : seq[string]): string =
+proc tweetThread*(author : string,
+                  tweets : seq[string]): string =
 
   let title = fmt"Thread by {author}"
-  let vnode = buildHtml(tdiv(class = "mt-3")):
+  let vnode = buildHtml(tdiv):
     h4: text title
     ul:
       li: a(href="/"): text "Main Page"
@@ -16,26 +16,40 @@ proc renderThread*(author : string,
   result = $vnode
 
 proc checkBack*() : string =
-  let vnode = buildHtml(tdiv(class = "mt-3")):
+  let vnode = buildHtml(tdiv):
     h4: text "Check back later please"
-  result = $vnode
-
-proc listAuthors*(authors : seq[string]) : string =
-  let title = "Authors"
-  let vnode = buildHtml(tdiv(class = "mt-3")):
-    h4: text title
-    ul:
-      for author in authors:
-        li: a(href = fmt"/author/{author}/threads"): text author
   result = $vnode
 
 proc listThreads*(author : string,
                   threads : seq[string]) : string =
   let title = fmt"Threads for {author}"
-  let vnode = buildHtml(tdiv(class = "mt-3")):
+  let vnode = buildHtml(tdiv):
     a(href="/"): text "Main Page"
     h4: text title
     ul:
       for thread in threads:
         li: a(href = fmt"/thread/{author}/status/{thread}"): text thread
+  result = $vnode
+
+
+## Main page
+proc listAuthors*(authors : seq[string]) : VNode =
+  let title = "Authors"
+  let vnode = buildHtml(tdiv):
+    h4: text title
+    ul:
+      for author in authors:
+        li: a(href = fmt"/author/{author}/threads"): text author
+  result = vnode
+
+proc submitThread() : VNode =
+  let vnode = buildHtml(tdiv):
+    form(action = "/thread", `method`="POST", class="submit-thread"):
+      text "blah"
+  result = vnode
+
+proc mainPage*(authors : seq[string]) : string =
+  let vnode = buildHtml(tdiv):
+    listAuthors(authors)
+    submitThread()
   result = $vnode
