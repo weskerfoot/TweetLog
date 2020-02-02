@@ -16,7 +16,7 @@ proc parseTweetUrl(url : string) : Option[ThreadRequest] =
   let path = url.parseUri.path
   var author : string
   var tweetID : int
-  if scanf(path, "/$w/status/$i", author, tweetID):
+  if scanf(path, "/$w/status/$i$.", author, tweetID):
     some(ThreadRequest(tweetID : $tweetID, author: author))
   else:
     none(ThreadRequest)
@@ -25,6 +25,8 @@ var chan : Channel[ThreadRequest]
 
 # Max 20 items processing
 chan.open(20)
+
+# Database functions
 
 let db = open("twit2blog.db", "", "", "")
 
@@ -60,6 +62,8 @@ proc insertThread(thread : TwitterThread) =
           thread.tweetID,
           thread.author,
           thread.tweets)
+
+# Routes
 
 router twitblog:
   get "/":
@@ -101,6 +105,8 @@ router twitblog:
     let threads = toSeq(threadIDs(author))
     resp author.listThreads(threads)
 
+# Entry points
+
 proc startServer* =
   createTweetTable()
   defer: db.close()
@@ -113,8 +119,8 @@ proc handleRenders* =
   echo "Starting processing queue"
   while true:
     let t : ThreadRequest = chan.recv()
+
     if threadExists(t.tweetID, t.author).isSome:
-      echo "We already have this thread, so we're skipping it"
       continue
 
     let tweets = t.tweetID.renderThread(t.author)

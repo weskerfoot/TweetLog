@@ -31,7 +31,8 @@ proc listThreads*(author : string,
         li: a(href = fmt"/thread/{author}/status/{thread}"): text thread
   result = $vnode
 
-## Main page
+# Main page
+
 proc listAuthors*(authors : seq[string]) : VNode =
   let title = "Authors"
   let vnode = buildHtml(tdiv):
