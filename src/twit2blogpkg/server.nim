@@ -1,13 +1,7 @@
-import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite, strformat
+import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite
 import twitter
+import templates
 import jester
-
-from htmlgen import nil
-
-# one thread just receives messages with thread ID / username
-# thread then passes messages to worker threads in round-robin fashion
-# worker threads gather thread contents, then update Redis DB (or sqlite) with thread ID mapped to content
-# user can go back to page with thread ID / user combo (or unique ID we give them?) and see compiled thread
 
 type
   ThreadRequest = object
@@ -66,46 +60,26 @@ router twitblog:
     let thread = threadExists(tweetID, author)
 
     if thread.isSome:
-      let title = fmt"Thread by {author}"
+      # Lists all the tweets in a thread
       let tweets = thread.get.tweets.split("\n")
-      resp htmlgen.body(
-        htmlgen.a(href=fmt"/author/{author}/threads", fmt"See all of {author}'s threads"),
-        htmlgen.h4(title),
-        htmlgen.ul(tweets.map((t) => htmlgen.li(t)).join(""))
-      )
+      resp renderThread(author, thread.get.tweets.split("\n"))
     else:
+      # Send it off to the rendering thread for processing
+      # Let them know to check back later
       chan.send(ThreadRequest(tweetID: tweetID, author: author))
-      resp htmlgen.h4("Check back later")
+      resp checkBack()
 
   get "/":
-    # lists all authors
+    # Lists all authors
     let authors = allAuthors.toSeq
     let title = "Authors"
-    resp htmlgen.body(
-      htmlgen.h4(title),
-      htmlgen.ul(
-        authors.map((author) =>
-          htmlgen.li(
-            htmlgen.a(href=fmt"/author/{author}/threads", author)
-          )
-        ).join("")
-      )
-    )
+    resp authors.listAuthors
 
   get "/author/@author/threads":
+    # Lists all threads by an author
     let author = @"author"
-    let title = fmt"Threads for {author}"
     let threads = toSeq(threadIDs(author))
-    resp htmlgen.body(
-      htmlgen.h4(title),
-      htmlgen.ul(
-        threads.map((thread) =>
-          htmlgen.li(
-            htmlgen.a(href=fmt"/thread/{author}/status/{thread}", thread)
-          )
-        ).join("")
-      )
-    )
+    resp author.listThreads(threads)
 
 proc startServer* =
   createTweetTable()

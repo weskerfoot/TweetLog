@@ -1,5 +1,4 @@
 import httpClient, base64, uri, json, os, strformat, sequtils, strutils, options
-from htmlgen import nil
 from xmltree import escape
 
 proc buildAuthHeader() : string =
@@ -78,7 +77,7 @@ proc convertWords(tweet : string) : string =
         let path = parsedUri.path
         if (scheme.len > 0 and hostname.len > 0):
           let url = xmltree.escape(fmt"{scheme}://{hostname}{path}")
-          stripped &= htmlgen.a(href=url, url)
+          stripped &= url
       elif word.len > 0 and word[0] != '@':
         stripped &= xmltree.escape(word)
       else:
