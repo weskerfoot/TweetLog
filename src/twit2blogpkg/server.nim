@@ -1,4 +1,4 @@
-import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite, json
+import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite, json, strformat, uri, strscans
 import twitter
 import templates
 import jester
@@ -11,6 +11,15 @@ type TwitterThread = ref object of RootObj
   tweetID: string
   author: string
   tweets: string
+
+proc parseTweetUrl(url : string) : Option[ThreadRequest] =
+  let path = url.parseUri.path
+  var author : string
+  var tweetID : int
+  if scanf(path, "/$w/status/$i", author, tweetID):
+    some(ThreadRequest(tweetID : $tweetID, author: author))
+  else:
+    none(ThreadRequest)
 
 var chan : Channel[ThreadRequest]
 
@@ -60,17 +69,16 @@ router twitblog:
     resp authors.mainPage
 
   post "/thread":
-    let params = request.formData
-    if not ("tweetID" in params and "author" in params):
-      resp "nope"
+    let params = request.params
+    if not ("tweetURL" in params):
+      resp "Invalid"
 
-    let tweetID = params["tweetID"].body
-    let author = params["author"].body
+    let threadURL = params["tweetURL"].parseTweetUrl
 
-    let thread = threadExists(tweetID, author)
-
-    chan.send(ThreadRequest(tweetID: tweetID, author: author))
-    resp checkBack()
+    if threadURL.isSome:
+      redirect (fmt"/thread/{threadURL.get.author}/status/{threadURL.get.tweetID}")
+    else:
+      resp "Invalid"
 
   get "/thread/@author/status/@tweetID":
     let tweetID = @"tweetID"

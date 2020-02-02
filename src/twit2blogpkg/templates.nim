@@ -31,7 +31,6 @@ proc listThreads*(author : string,
         li: a(href = fmt"/thread/{author}/status/{thread}"): text thread
   result = $vnode
 
-
 ## Main page
 proc listAuthors*(authors : seq[string]) : VNode =
   let title = "Authors"
@@ -45,7 +44,10 @@ proc listAuthors*(authors : seq[string]) : VNode =
 proc submitThread() : VNode =
   let vnode = buildHtml(tdiv):
     form(action = "/thread", `method`="POST", class="submit-thread"):
-      text "blah"
+      tdiv:
+        label(`for`="tweetUrl"):
+          text "Tweet URL"
+        input(`type`="text", name="tweetURL", id="tweeturl", required="true")
   result = vnode
 
 proc mainPage*(authors : seq[string]) : string =
