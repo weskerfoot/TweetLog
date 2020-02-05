@@ -79,7 +79,7 @@ proc convertWords(tweet : string) : string =
           let url = xmltree.escape(fmt"{scheme}://{hostname}{path}")
           stripped &= url
       elif word.len > 0 and word[0] != '@':
-        stripped &= xmltree.escape(word)
+        stripped &= word
       else:
         continue
   stripped.join(" ")
