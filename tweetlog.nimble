@@ -6,7 +6,7 @@ description   = "Turn Your Tweets Into Blog Posts"
 license       = "MIT"
 srcDir        = "src"
 installExt    = @["nim"]
-bin           = @["twit2blog"]
+bin           = @["tweetlog"]
 
 # Dependencies
 requires "nim >= 1.0.9"

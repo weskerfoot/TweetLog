@@ -1,4 +1,4 @@
-import twit2blogpkg/twitter, twit2blogpkg/server
+import tweetlogpkg/twitter, tweetlogpkg/server
 import threadpool
 
 when isMainModule:
