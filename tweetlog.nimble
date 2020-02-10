@@ -15,4 +15,4 @@ requires "https://github.com/pragmagic/karax"
 
 task bookmark, "Builds the minified bookmarklet":
   "echo -n 'javascript:' > ./bookmarklet.min.js".exec
-  "uglifyjs --mangle --compress toplevel,sequences=false bookmarklet.js >> ./bookmarklet.min.js".exec
+  "uglifyjs bookmarklet.js >> ./bookmarklet.min.js".exec

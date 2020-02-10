@@ -16,13 +16,12 @@
 
   function getLastTweet() {
     var author = window.location.pathname.split('/')[1];
-    var xp = "//a[contains(@href, '"+author+"/status') and not(contains(@href, 'photo')) and not(contains(@href, 'like'))]";
+    var xp = "//a[contains(@href, '"+author+"/status') and not(contains(@href, 'photo')) and not(contains(@href, 'like')) and not(contains(@href, 'retweet'))]";
     return getLastXPath(xp).pathname;
   }
 
   function queueTweet() {
     /* TODO check the current URL */
-    /* TODO check the last tweet URL is valid, skip likes/images */
     var lastTweet = getLastTweet();
     var url = "http://localhost:8080/thread"+lastTweet;
     window.open(url, "_blank");
