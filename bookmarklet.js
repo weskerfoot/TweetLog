@@ -17,7 +17,6 @@
   function getLastTweet() {
     var author = window.location.pathname.split('/')[1];
     var xp = "//a[contains(@href, '"+author+"/status')]";
-    
     return getLastXPath(xp).pathname;
   }
 

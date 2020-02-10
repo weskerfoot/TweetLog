@@ -28,7 +28,7 @@ chan.open(20)
 
 # Database functions
 
-let db = open("twit2blog.db", "", "", "")
+let db = open("tweetlog.db", "", "", "")
 
 proc createTweetTable() =
   db.exec(sql"""CREATE TABLE IF NOT EXISTS threads (

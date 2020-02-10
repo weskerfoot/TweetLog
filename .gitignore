@@ -1,4 +1,4 @@
 .envrc
-twit2blog
-twit2blog.db
+tweetlog.db
 bookmarklet.min.js
+tweetlog

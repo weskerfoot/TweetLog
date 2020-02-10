@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.11.0"
 author        = "Wesley Kerfoot"
 description   = "Turn Your Tweets Into Blog Posts"
 license       = "MIT"
@@ -14,6 +14,5 @@ requires "https://github.com/dom96/jester"
 requires "https://github.com/pragmagic/karax"
 
 task bookmark, "Builds the minified bookmarklet":
-  "bookmarklet.min.js".rmFile
   "echo -n 'javascript:' > ./bookmarklet.min.js".exec
-  "uglifyjs bookmarklet.js >> ./bookmarklet.min.js".exec
+  "uglifyjs --mangle --compress toplevel,sequences=false bookmarklet.js > ./bookmarklet.min.js".exec

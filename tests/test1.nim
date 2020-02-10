@@ -7,6 +7,6 @@
 
 import unittest
 
-import twit2blogpkg/twitter
+import tweetlogpkg/twitter
 #test "correct welcome":
   #check getWelcomeMessage() == "Hello, World!"
