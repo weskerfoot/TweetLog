@@ -13,7 +13,8 @@ proc layout(inner : VNode, title : string) : string =
   "<!DOCTYPE html>\n" & $vnode
 
 proc tweetThread*(author : string,
-                  tweets : seq[string]): string =
+                  tweets : seq[string],
+                  createdAt : string): string =
 
   let title = fmt"Thread by {author}"
   let vnode = buildHtml(tdiv(class="")):
@@ -21,6 +22,7 @@ proc tweetThread*(author : string,
     ul:
       li: a(href="/"): text "Main Page"
       li: a(href=fmt"/author/{author}/threads"): text (fmt"See all of {author}'s threads")
+    h3: text createdAt
     ul(class="m-auto max-w-md list-decimal text-left"):
       for tweet in tweets:
         li: text tweet

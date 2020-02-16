@@ -1,4 +1,4 @@
-import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite, json, strformat, uri, strscans
+import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite, json, strformat, uri, strscans, times
 import twitter
 import templates
 import jester
@@ -15,6 +15,9 @@ type TwitterThread = ref object of RootObj
   tweetID: string
   tweets: string
   author: Author
+  createdAt: DateTime
+
+const dateFmt = "YYYY-MM-dd hh:mm:ss"
 
 proc parseTweetUrl(url : string) : Option[ThreadRequest] =
   let path = url.parseUri.path
@@ -44,6 +47,7 @@ proc createTweetTables() =
                    id INTEGER PRIMARY KEY,
                    tid TEXT,
                    tweets TEXT,
+                   collectedAt TEXT,
                    authorID INTEGER
                 )""")
 
@@ -78,11 +82,14 @@ proc threadExists(threadID : string, authorName : string) : Option[TwitterThread
   if row.all(col => col == ""):
     return none(TwitterThread)
 
+  let f = initTimeFormat("yyyy-MM-dd")
+
   some(
     TwitterThread(
       tweetID: row[1],
       author: author.get,
-      tweets: row[2]
+      tweets: row[2],
+      createdAt: row[3].parse(dateFmt)
     )
   )
 
@@ -107,9 +114,10 @@ proc insertThread(thread : TwitterThread) =
   if not author.isSome:
     return
 
-  db.exec(sql"INSERT INTO threads (tid, tweets, authorID) VALUES (?, ?, ?)",
+  db.exec(sql"INSERT INTO threads (tid, tweets, collectedAt, authorID) VALUES (?, ?, ?, ?)",
           thread.tweetID,
           thread.tweets,
+          thread.createdAt.format(dateFmt),
           author.get.authorID)
 
 # Routes
@@ -141,7 +149,9 @@ router twitblog:
     if thread.isSome:
       # Lists all the tweets in a thread
       let tweets = thread.get.tweets.split("\n")
-      resp tweetThread(author, thread.get.tweets.split("\n"))
+      resp tweetThread(author,
+                       thread.get.tweets.split("\n"),
+                       thread.get.createdAt.format(dateFmt))
     else:
       # Send it off to the rendering thread for processing
       # Let them know to check back later
@@ -184,6 +194,7 @@ proc handleRenders* =
         TwitterThread(
           tweetID: t.tweetID,
           author: t.author,
-          tweets: tweets.get.join("\n")
+          tweets: tweets.get.join("\n"),
+          createdAt: now().utc
         )
       )
