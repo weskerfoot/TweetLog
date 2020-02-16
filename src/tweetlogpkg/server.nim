@@ -3,21 +3,25 @@ import twitter
 import templates
 import jester
 
+type Author = object
+  name: string
+  authorID : int
+
 type ThreadRequest = object
   tweetID: string
-  author: string
+  author: Author
 
 type TwitterThread = ref object of RootObj
   tweetID: string
-  author: string
   tweets: string
+  author: Author
 
 proc parseTweetUrl(url : string) : Option[ThreadRequest] =
   let path = url.parseUri.path
   var author : string
   var tweetID : int
   if scanf(path, "/$w/status/$i$.", author, tweetID):
-    some(ThreadRequest(tweetID : $tweetID, author: author))
+    some(ThreadRequest(tweetID : $tweetID, author: Author(name: author)))
   else:
     none(ThreadRequest)
 
@@ -30,38 +34,70 @@ chan.open(20)
 
 let db = open("tweetlog.db", "", "", "")
 
-proc createTweetTable() =
+proc createTweetTables() =
   db.exec(sql"""CREATE TABLE IF NOT EXISTS threads (
                    id INTEGER PRIMARY KEY,
                    tid TEXT,
-                   author TEXT,
-                   tweets TEXT
+                   tweets TEXT,
+                   authorID INTEGER
                 )""")
 
-proc threadExists(threadID : string, author : string) : Option[TwitterThread] =
-  let row = db.getRow(sql"SELECT * FROM threads WHERE tid=? AND author=?", threadID, author)
+  db.exec(sql"""CREATE TABLE IF NOT EXISTS authors (
+                   id INTEGER PRIMARY KEY,
+                   name TEXT,
+                   UNIQUE(name, id)
+                )""")
+
+proc authorExists(authorName : string) : Option[Author] =
+  let authorID = db.getRow(sql"SELECT * from authors where name=?", authorName)
+
+  if authorID.all(col => col == ""):
+    return none(Author)
+
+  return some(Author(name: authorName, authorID: authorID[0].parseInt))
+
+proc threadExists(threadID : string, authorName : string) : Option[TwitterThread] =
+  let author = authorName.authorExists
+
+  if not author.isSome:
+    return none(TwitterThread)
+
+  let row = db.getRow(sql"SELECT * FROM threads WHERE tid=? AND authorID=?", threadID, author.get.authorID)
 
   if row.all(col => col == ""):
     return none(TwitterThread)
+
   some(
     TwitterThread(tweetID: row[1],
-                  author: row[2],
-                  tweets: row[3])
+                  author: author.get,
+                  tweets: row[2])
   )
 
 iterator allAuthors() : string =
-  for author in db.getAllRows(sql"SELECT DISTINCT author FROM threads"):
+  for author in db.getAllRows(sql"SELECT DISTINCT name FROM authors"):
     yield author[0]
 
 iterator threadIDs(author : string) : string =
-  for threadID in db.getAllRows(sql"SELECT tid from threads WHERE author=?", author):
-    yield threadID[0]
+  let authorID = db.getRow(sql"SELECT * from authors where name=?", author)
+
+  if authorID.all(col => col == ""):
+    yield ""
+  else:
+    for threadID in db.getAllRows(sql"SELECT tid from threads WHERE authorID=?", authorID):
+      yield threadID[0]
 
 proc insertThread(thread : TwitterThread) =
-  db.exec(sql"INSERT INTO threads (tid, author, tweets) VALUES (?, ?, ?)",
+  db.exec(sql"INSERT OR IGNORE INTO authors (name) VALUES (?)", thread.author.name)
+
+  let author = thread.author.name.authorExists
+
+  if not author.isSome:
+    return
+
+  db.exec(sql"INSERT INTO threads (tid, tweets, authorID) VALUES (?, ?, ?)",
           thread.tweetID,
-          thread.author,
-          thread.tweets)
+          thread.tweets,
+          author.get.authorID)
 
 # Routes
 
@@ -96,7 +132,7 @@ router twitblog:
     else:
       # Send it off to the rendering thread for processing
       # Let them know to check back later
-      chan.send(ThreadRequest(tweetID: tweetID, author: author))
+      chan.send(ThreadRequest(tweetID: tweetID, author: Author(name: author)))
       resp checkBack()
 
   get "/author/@author/threads":
@@ -108,7 +144,7 @@ router twitblog:
 # Entry points
 
 proc startServer* =
-  createTweetTable()
+  createTweetTables()
   defer: db.close()
   let port = 8080.Port
   let settings = newSettings(port=port)
@@ -120,10 +156,10 @@ proc handleRenders* =
   while true:
     let t : ThreadRequest = chan.recv()
 
-    if threadExists(t.tweetID, t.author).isSome:
+    if threadExists(t.tweetID, t.author.name).isSome:
       continue
 
-    let tweets = t.tweetID.renderThread(t.author)
+    let tweets = t.tweetID.renderThread(t.author.name)
 
     if tweets.isSome:
       insertThread(

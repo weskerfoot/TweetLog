@@ -1,12 +1,13 @@
 import strformat
 import karax / [karaxdsl, vdom]
 
-proc layout(inner : VNode) : string =
+proc layout(inner : VNode, title : string) : string =
   let vnode = buildHtml(html):
     head:
       meta(charset="utf-8")
       link(href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css", rel="stylesheet")
     body:
+      h1(class="text-center"): text title
       tdiv(class="text-center appearance-none"):
         inner
   "<!DOCTYPE html>\n" & $vnode
@@ -23,12 +24,12 @@ proc tweetThread*(author : string,
     ul(class="m-auto max-w-md list-decimal text-left"):
       for tweet in tweets:
         li: text tweet
-  result = $vnode.layout
+  result = $vnode.layout("Threads")
 
 proc checkBack*() : string =
   let vnode = buildHtml(tdiv):
     h4: text "Check back later please"
-  result = $vnode.layout
+  result = $vnode.layout("Check back")
 
 proc listThreads*(author : string,
                   threads : seq[string]) : string =
@@ -39,7 +40,7 @@ proc listThreads*(author : string,
     ul:
       for thread in threads:
         li: a(href=fmt"/thread/{author}/status/{thread}"): text thread
-  result = $vnode.layout
+  result = $vnode.layout("Threads")
 
 # Main page
 
@@ -64,7 +65,9 @@ proc submitThread() : VNode =
   result = vnode
 
 proc mainPage*(authors : seq[string]) : string =
-  let vnode = buildHtml(tdiv):
-    listAuthors(authors)
-    submitThread()
-  result = $vnode.layout
+  let vnode = buildHtml(tdiv(class="grid grid-cols-2 gap-4")):
+    tdiv:
+      listAuthors(authors)
+    tdiv:
+      submitThread()
+  result = $vnode.layout("Tweetlog")
