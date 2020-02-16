@@ -17,7 +17,7 @@ type TwitterThread = ref object of RootObj
   author: Author
   collectedAt: DateTime
 
-const dateFmt = "YYYY-MM-dd hh:mm:ss"
+const dateFmt = "YYYY-MM-dd'T'hh:mm:ss'Z'"
 
 proc parseTweetUrl(url : string) : Option[ThreadRequest] =
   let path = url.parseUri.path
