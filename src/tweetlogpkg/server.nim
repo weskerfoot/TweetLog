@@ -21,7 +21,12 @@ proc parseTweetUrl(url : string) : Option[ThreadRequest] =
   var author : string
   var tweetID : int
   if scanf(path, "/$w/status/$i$.", author, tweetID):
-    some(ThreadRequest(tweetID : $tweetID, author: Author(name: author)))
+    some(
+      ThreadRequest(
+        tweetID : $tweetID,
+        author: Author(name: author)
+      )
+    )
   else:
     none(ThreadRequest)
 
@@ -54,7 +59,11 @@ proc authorExists(authorName : string) : Option[Author] =
   if authorID.all(col => col == ""):
     return none(Author)
 
-  return some(Author(name: authorName, authorID: authorID[0].parseInt))
+  return some(
+    Author(
+      name: authorName,
+      authorID: authorID[0].parseInt)
+  )
 
 proc threadExists(threadID : string, authorName : string) : Option[TwitterThread] =
   let author = authorName.authorExists
@@ -62,15 +71,19 @@ proc threadExists(threadID : string, authorName : string) : Option[TwitterThread
   if not author.isSome:
     return none(TwitterThread)
 
-  let row = db.getRow(sql"SELECT * FROM threads WHERE tid=? AND authorID=?", threadID, author.get.authorID)
+  let row = db.getRow(sql"SELECT * FROM threads WHERE tid=? AND authorID=?",
+                      threadID,
+                      author.get.authorID)
 
   if row.all(col => col == ""):
     return none(TwitterThread)
 
   some(
-    TwitterThread(tweetID: row[1],
-                  author: author.get,
-                  tweets: row[2])
+    TwitterThread(
+      tweetID: row[1],
+      author: author.get,
+      tweets: row[2]
+    )
   )
 
 iterator allAuthors() : string =
@@ -132,7 +145,12 @@ router twitblog:
     else:
       # Send it off to the rendering thread for processing
       # Let them know to check back later
-      chan.send(ThreadRequest(tweetID: tweetID, author: Author(name: author)))
+      chan.send(
+        ThreadRequest(
+          tweetID: tweetID,
+          author: Author(name: author)
+        )
+      )
       resp checkBack()
 
   get "/author/@author/threads":
@@ -163,7 +181,9 @@ proc handleRenders* =
 
     if tweets.isSome:
       insertThread(
-        TwitterThread(tweetID: t.tweetID,
-                      author: t.author,
-                      tweets: tweets.get.join("\n"))
+        TwitterThread(
+          tweetID: t.tweetID,
+          author: t.author,
+          tweets: tweets.get.join("\n")
+        )
       )
