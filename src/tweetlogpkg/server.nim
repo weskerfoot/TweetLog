@@ -15,7 +15,7 @@ type TwitterThread = ref object of RootObj
   tweetID: string
   tweets: string
   author: Author
-  createdAt: DateTime
+  collectedAt: DateTime
 
 const dateFmt = "YYYY-MM-dd hh:mm:ss"
 
@@ -89,7 +89,7 @@ proc threadExists(threadID : string, authorName : string) : Option[TwitterThread
       tweetID: row[1],
       author: author.get,
       tweets: row[2],
-      createdAt: row[3].parse(dateFmt)
+      collectedAt: row[3].parse(dateFmt)
     )
   )
 
@@ -117,7 +117,7 @@ proc insertThread(thread : TwitterThread) =
   db.exec(sql"INSERT INTO threads (tid, tweets, collectedAt, authorID) VALUES (?, ?, ?, ?)",
           thread.tweetID,
           thread.tweets,
-          thread.createdAt.format(dateFmt),
+          thread.collectedAt.format(dateFmt),
           author.get.authorID)
 
 # Routes
@@ -151,7 +151,7 @@ router twitblog:
       let tweets = thread.get.tweets.split("\n")
       resp tweetThread(author,
                        thread.get.tweets.split("\n"),
-                       thread.get.createdAt.format(dateFmt))
+                       thread.get.collectedAt.format(dateFmt))
     else:
       # Send it off to the rendering thread for processing
       # Let them know to check back later
@@ -195,6 +195,6 @@ proc handleRenders* =
           tweetID: t.tweetID,
           author: t.author,
           tweets: tweets.get.join("\n"),
-          createdAt: now().utc
+          collectedAt: now().utc
         )
       )
