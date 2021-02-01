@@ -17,6 +17,7 @@ type TwitterThread = ref object of RootObj
   author: Author
   collectedAt: DateTime
 
+# DateTime format string in ISO8601 format
 const dateFmt = "YYYY-MM-dd'T'hh:mm:ss'Z'"
 
 proc parseTweetUrl(url : string) : Option[ThreadRequest] =
@@ -187,7 +188,7 @@ proc handleRenders* =
     if threadExists(t.tweetID, t.author.name).isSome:
       continue
 
-    let tweets = t.tweetID.renderThread(t.author.name)
+    let tweets = t.tweetID.renderThread
 
     if tweets.isSome:
       insertThread(

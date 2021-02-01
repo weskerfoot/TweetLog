@@ -1,5 +1,13 @@
 import httpClient, base64, uri, json, os, strformat, sequtils, strutils, options
+import timezones, times
+import types
+
 from xmltree import escape
+
+proc parseTwitterTS(ts : string) : DateTime =
+  ts.parse("ddd MMM dd hh:mm:ss YYYY")
+
+# echo "Sun Feb 16 18:19:17 +0000 2020".parseTwitterTS.repr
 
 proc buildAuthHeader() : string =
   let consumerKey = "TWITTER_CONSUMER_KEY".getEnv
@@ -36,6 +44,26 @@ proc tweetClient() : HttpClient =
   )
   client
 
+proc listTweets2*(user : string) : JsonNode =
+  let client = tweetClient()
+  let userIdReq = fmt"/2/users/by?usernames={user}"
+  var url = fmt"https://api.twitter.com{userIdReq}"
+
+  let userId = client.request(url, httpMethod = HttpGet).body.parseJson{"data"}[0]{"id"}.getStr
+
+  let tweetsReq = fmt"/2/users/{userId}/tweets"
+  url = fmt"https://api.twitter.com{tweetsReq}"
+  return client.request(url, httpMethod = HttpGet).body.parseJson
+
+proc getTweetConvo*(tweetID : string) : JsonNode =
+  let client = tweetClient()
+  let userIdReq = fmt"/2/tweets?ids={tweetID}&tweet.fields=conversation_id,author_id"
+  var url = fmt"https://api.twitter.com{userIdReq}"
+
+  let tweetInfo = client.request(url, httpMethod = HttpGet).body.parseJson
+
+  tweetInfo
+
 proc listTweets*(user : string) : JsonNode =
   let client = tweetClient()
   let reqTarget = fmt"/1.1/statuses/user_timeline.json?count=100&screen_name={user}"
@@ -50,23 +78,39 @@ proc getTweet*(tweetID : string) : string =
 
   client.request(url, httpMethod = HttpGet).body
 
-proc getThread*(tweetStart : string, user : string) : seq[string] =
-  let parsed = tweetStart.getTweet.parseJson
-  let nextTweetID = parsed{"in_reply_to_status_id_str"}.getStr()
+iterator getThread*(tweetStart : string) : Tweet =
+  let client = tweetClient()
+  var reqTarget = fmt"/2/tweets/search/recent?query=conversation_id:{tweetStart}&tweet.fields=in_reply_to_user_id,author_id,created_at,conversation_id"
+  var url = fmt"https://api.twitter.com{reqTarget}"
 
-  if nextTweetID == "":
-    if parsed{"user", "screen_name"}.getStr() == user:
-      return @[parsed{"full_text"}.getStr()]
-    else:
-      return @[]
-  else:
-    if parsed{"user", "screen_name"}.getStr() == user:
-      return nextTweetID.getThread(user) & @[parsed{"full_text"}.getStr()]
-    else:
-      return nextTweetID.getThread(user)
+  var currentPage : JsonNode
 
-proc convertWords(tweet : string) : string =
-  let words = tweet.split(" ")
+  currentPage = client.request(url, httpMethod = HttpGet).body.parseJson
+
+  while true:
+    if currentPage{"meta", "result_count"}.getInt == 0:
+      break
+    for tweet in currentPage{"data"}:
+      yield Tweet(
+              id: tweet{"id"}.getStr,
+              in_reply: tweet{"in_reply_to_user_id"}.getStr,
+              author_id: tweet{"author_id"}.getStr,
+              text: tweet{"text"}.getStr,
+              created_at: tweet{"created_at"}.getStr,
+              conversation_id: tweet{"conversation_id"}.getStr
+            )
+
+    let paginationToken = currentPage{"meta"}{"next_token"}
+
+    if paginationToken == nil:
+      break
+
+    reqTarget = fmt"/2/tweets/search/recent?query=conversation_id:{tweetStart}&tweet.fields=in_reply_to_user_id,author_id,created_at,conversation_id&next_token={paginationToken.getStr}"
+    url = fmt"https://api.twitter.com{reqTarget}"
+    currentPage = client.request(url, httpMethod = HttpGet).body.parseJson
+
+proc convertWords(tweet : Tweet) : string =
+  let words = tweet.text.split(" ")
   var stripped : seq[string]
   for chunk in words:
     for word in chunk.splitLines:
@@ -84,8 +128,8 @@ proc convertWords(tweet : string) : string =
         continue
   stripped.join(" ")
 
-proc renderThread*(tweetID : string, user : string) : Option[seq[string]] =
-  let thread = tweetID.getThread(user).map(convertWords).map(capitalizeAscii)
+proc renderThread*(tweetID : string) : Option[seq[string]] =
+  let thread = toSeq(getThread(tweetID)).map(convertWords).map(capitalizeAscii)
   if thread.len == 0:
     return none(seq[string])
   some(thread)
