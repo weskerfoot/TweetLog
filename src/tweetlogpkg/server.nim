@@ -170,6 +170,10 @@ router twitblog:
     let threads = toSeq(threadIDs(author))
     resp author.listThreads(threads)
 
+  get "/tweetlog/auth":
+    echo request
+    resp ""
+
 # Entry points
 
 proc startServer* =

@@ -8,10 +8,14 @@ from xmltree import escape
 
 when isMainModule:
   echo "Running"
-  for tweet in "1355971359168466945".getThread:
-    echo ""
-    echo tweet.text
-    echo ""
+  echo "https://api.twitter.com/oauth/request_token".requestToken("POST", "")
+
+  #echo "weskerfoot".listTweets
+  #echo 10.getHome
+  #for tweet in "1355971359168466945".getThread:
+    #echo ""
+    #echo tweet.text
+    #echo ""
 
   #for tweet in "strivev4".listTweets2(){"data"}:
     #echo tweet
