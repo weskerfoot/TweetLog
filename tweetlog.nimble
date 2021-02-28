@@ -12,6 +12,8 @@ bin           = @["tweetlog"]
 requires "nim >= 1.0"
 requires "https://github.com/dom96/jester"
 requires "https://github.com/pragmagic/karax"
+requires "https://github.com/GULPF/timezones"
+requires "https://github.com/cheatfate/nimcrypto"
 
 task bookmark, "Builds the minified bookmarklet":
   "echo -n 'javascript:' > ./bookmarklet.min.js".exec

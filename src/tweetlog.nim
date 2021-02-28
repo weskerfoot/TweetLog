@@ -1,5 +1,6 @@
 import tweetlogpkg/twitter, tweetlogpkg/server
 import threadpool
+import tweetlogpkg/auth
 
 import httpClient, base64, uri, json, os, strformat, sequtils, strutils, options
 import timezones, times
