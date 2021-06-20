@@ -1,9 +1,23 @@
 import httpClient, base64, uri, json, os, strformat, sequtils, strutils, options, sugar, times, types
 import tables, algorithm, base64, math, options
 import nimcrypto
+import threadpool
+
+proc realEncodeUrl*(s: string): string =
+  ## Exclude A..Z a..z 0..9 - . _ ~
+  ## See https://dev.twitter.com/oauth/overview/percent-encoding-parameters
+  result = newStringOfCap(s.len + s.len shr 2) # assume 12% non-alnum-chars
+  for i in 0..s.len-1:
+    case s[i]
+    of 'a'..'z', 'A'..'Z', '0'..'9', '_', '-', '.', '~':
+      add(result, s[i])
+    else:
+      add(result, '%')
+      add(result, toHex(ord(s[i]), 2))
 
 proc tweetClient*(token : string) : HttpClient =
   var client = newHttpClient()
+
   client.headers = newHttpHeaders(
     {
       "Authorization" : token
@@ -11,41 +25,19 @@ proc tweetClient*(token : string) : HttpClient =
   )
   client
 
-# client credentials flow
-proc buildAuthHeader() : string =
-  let consumerKey = "TWITTER_CONSUMER_KEY".getEnv
-  let secret = "TWITTER_CONSUMER_SECRET".getEnv
-  "Basic " & (consumerKey.encodeUrl & ":"  & secret.encodeUrl).encode
-
-proc getBearerToken*() : string =
-  var client = newHttpClient()
-  client.headers = newHttpHeaders(
-    {
-      "Content-Type" : "application/x-www-form-urlencoded;charset=UTF-8",
-      "Authorization" : buildAuthHeader()
-    }
-  )
-
-  let body = "grant_type=client_credentials"
-
-  let response = client.request("https://api.twitter.com/oauth2/token",
-                                httpMethod = HttpPost,
-                                body = body).body.parseJson
-
-  let responseType = response["token_type"].getStr
-
-  assert(responseType == "bearer")
-
-  "Bearer " & response["access_token"].getStr
-
 # 3-legged OAuth stuff
-type Params = Table[string, string]
-type OAuthToken = tuple[token: string, token_secret: string]
 
-proc generateNonce() : string =
+proc parseQueryString(qstr : string) : Table[string, string] =
+  toTable(
+    map(qstr.split("&"),
+        proc(pair : string) : tuple[a: string, b: string] =
+          let split = pair.split("=")
+          (split[0], split[1])))
+
+proc generateNonce() : string {.gcsafe.} =
   let alphabet = map(toSeq(65..90).concat(
                      toSeq(97..122)).concat(
-                     toSeq(49..57)), (c) => char(c))
+                     toSeq(49..57)), (c) {.gcsafe.} => char(c))
 
   var randBytes : array[50, uint8]
   discard randomBytes(randBytes)
@@ -55,77 +47,131 @@ proc constructEncodedString(params : Params, sep : string, include_quotes : bool
   var encodedPairs : seq[string] = @[]
   var keyPairs : seq[tuple[key: string, value: string]] = toSeq(params.pairs)
 
-  keyPairs.sort((a, b) => cmp(a.key.encodeUrl, b.key.encodeUrl))
+  keyPairs.sort((a, b) => cmp(a.key.realEncodeUrl, b.key.realEncodeUrl))
 
   for pair in keyPairs:
     if include_quotes:
-      encodedPairs &= pair[0].encodeUrl & "=" & "\"" & pair[1].encodeUrl & "\""
+      encodedPairs &= pair[0] & "=" & "\"" & pair[1].realEncodeUrl & "\""
     else:
-      encodedPairs &= pair[0].encodeUrl & "=" & pair[1].encodeUrl
+      encodedPairs &= pair[0] & "=" & pair[1].realEncodeUrl
 
   encodedPairs.join(sep)
 
 proc constructParameterString(params : Params) : string =
-  params.constructEncodedString("&", include_quotes=false)
+  result = params.constructEncodedString("&", include_quotes=false)
+  echo fmt"parameter string = {result}"
 
 proc constructHeaderString(params : Params) : string =
   "OAuth " & params.constructEncodedString(", ", include_quotes=true)
 
 proc sign(reqMethod : string,
           paramString : string,
-          baseUrl : string,
-          accessToken : string = "") : string =
-  let sigBaseString : string = reqMethod.toUpperAscii & "&" & baseUrl.encodeUrl & "&" & paramString.encodeUrl
+          baseUrl : string) : string =
 
-  let signingKey : string = getEnv("TWITTER_CONSUMER_SECRET").encodeUrl & "&" & accessToken
-  sha256.hmac(signingKey, sigBaseString).data.encode
+  let sigBaseString : string = reqMethod.toUpperAscii & "&" & baseUrl.realEncodeUrl & "&" & paramString.realEncodeUrl
+  var signingKey : string
 
-proc requestToken*(requestUrl : string, requestMethod : string, requestBody : string) : Option[OAuthToken] =
-  # Obtain a request token for OAuth
-  # as well as a request token secret
-  # these are used to authenticate a specific user
-  let callback = getEnv("TWITTER_OAUTH_CALLBACK")
-  let consumerKey = getEnv("TWITTER_CONSUMER_KEY")
+  signingKey = getEnv("TWITTER_CONSUMER_SECRET").realEncodeUrl & "&"
 
-  var headers = newHttpHeaders([])
+  result = sha1.hmac(signingKey, sigBaseString).data.encode
 
+proc signRequest*(requestUrl : string,
+                  requestMethod : string) : Params =
+  # Return params along with signature that signs request for API request
+  let oauth_consumer_key = getEnv("TWITTER_CONSUMER_KEY")
   let oauth_nonce = generateNonce()
 
+  result["oauth_callback"] = getEnv("TWITTER_OAUTH_CALLBACK")
+
   # The twitter documentation uses SHA1, but this works and is future-proof
-  let oauth_signature_method = "HMAC-SHA256"
+  let oauth_signature_method = "HMAC-SHA1".realEncodeUrl
   let oauth_timestamp : string = $trunc(epochTime()).uint64
 
-  var params : Params = {
-    "oauth_nonce" : oauth_nonce,
-    "oauth_signature_method" : oauth_signature_method,
-    "oauth_callback" : callback,
-    "oauth_timestamp" : oauth_timestamp,
-    "oauth_consumer_key" : consumerKey,
-    "oauth_version" : "1.0"
-    }.toTable
+  result["oauth_nonce"] = oauth_nonce
+  result["oauth_signature_method"] = oauth_signature_method
+  result["oauth_timestamp"] = oauth_timestamp
+  result["oauth_consumer_key"] = oauth_consumer_key
+  result["oauth_version"] = "1.0"
 
-  let paramString = params.constructParameterString
+  let paramString = result.constructParameterString
 
-  let signature = sign(requestMethod, paramString, requestUrl)
+  result["oauth_signature"] = sign(requestMethod, paramString, requestUrl)
 
-  params["oauth_signature"] = signature
+proc getAuthRequestSigned(requestUrl : string) : Params =
+  signRequest(requestUrl, "POST")
 
+proc requestToken*(requestUrl : string) : Option[OAuthToken] =
+  var headers = newHttpHeaders([])
+
+  let params = getAuthRequestSigned(requestUrl)
   let client = tweetClient(params.constructHeaderString)
-
-  let resp = client.request(requestUrl, httpMethod = HttpPost, headers = headers, body = requestBody)
+  let resp = client.request(requestUrl, httpMethod = HttpPost, headers = headers, body = "")
 
   if resp.status != "200 OK":
     echo resp.body
     return none(OAuthToken)
 
-  let keyPairs : Table[string, string] = toTable(
-      map(resp.body.split("&"),
-          proc(pair : string) : tuple[a: string, b: string] =
-            let split = pair.split("=")
-            (split[0], split[1])))
+  let keyPairs = resp.body.parseQueryString
 
   if not (keyPairs.hasKey("oauth_token") and keyPairs.hasKey("oauth_token_secret")):
     return none(OAuthToken)
 
-  some((token: keyPairs["oauth_token"], token_secret: keyPairs["oauth_token_secret"]))
+  some((oauth_token: keyPairs["oauth_token"], oauth_token_secret: keyPairs["oauth_token_secret"]))
 
+proc getTokenRedirect*() : string =
+  let req = "https://api.twitter.com/oauth/request_token".requestToken
+  fmt"https://api.twitter.com/oauth/authenticate?oauth_token={req.get.oauth_token}"
+
+proc getAccessToken*(oauth_token : string, oauth_verifier : string) : Option[AccessToken] =
+  var params : Params
+  let client = tweetClient(params.constructHeaderString)
+  let requestUrl = fmt"https://api.twitter.com/oauth/access_token?oauth_token={oauth_token}&oauth_verifier={oauth_verifier}"
+  let resp = client.request(requestUrl, httpMethod = HttpPost)
+
+  if resp.status != "200 OK":
+    return none(AccessToken)
+
+  let keyPairs = resp.body.parseQueryString
+
+  some((access_token: keyPairs["oauth_token"],
+        access_token_secret: keyPairs["oauth_token_secret"],
+        screen_name: keyPairs["screen_name"],
+        user_id: keyPairs["user_id"]))
+
+import jwt
+
+proc generateJWT*(token : AccessToken) : string =
+  # take an access token and return an encrypted JWT
+  let secret = getEnv("JWT_SECRET")
+  var encoded = toJWT(%*{
+    "header" : {
+      "alg" : "HS256",
+      "typ" : "JWT"
+    },
+    "claims" : {
+      "access_token" : token.access_token,
+      "access_token_secret" : token.access_token_secret,
+      "screen_name" : token.screen_name,
+      "user_id" : token.user_id
+    }
+  })
+
+  encoded.sign(secret)
+  $encoded
+
+proc verify*(token: string): bool =
+  let secret = getEnv("JWT_SECRET")
+  try:
+    let jwtToken = token.toJWT()
+    result = jwtToken.verify(secret, HS256)
+  except InvalidToken:
+    result = false
+
+proc decode*(token: string): Option[AccessToken] =
+  if not token.verify:
+    return none(AccessToken)
+  let claims = token.toJWT().claims
+  some((access_token: claims["access_token"].node.str,
+        access_token_secret: claims["access_token_secret"].node.str,
+        screen_name: claims["screen_name"].node.str,
+        user_id: claims["user_id"].node.str))
