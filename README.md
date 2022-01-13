@@ -1,3 +1,6 @@
+# **This repository has moved to [https://git.wesk.tech/wes/TweetLog](https://git.wesk.tech/wes/TweetLog)**
+
+
 ### TweetLog
 
 A simple tool to help make it easier to archive readable tweets you can browse. No external server or proprietary SaaS solution needed.
