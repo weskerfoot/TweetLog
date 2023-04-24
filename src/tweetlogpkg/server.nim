@@ -1,7 +1,8 @@
 import strutils, options, sugar, sequtils, asyncdispatch, threadpool, db_sqlite, json, strformat, uri, strscans, times
-import twitter
+import twitter_api
 import templates
 import jester
+import auth, types
 
 type Author = object
   name: string
@@ -10,6 +11,7 @@ type Author = object
 type ThreadRequest = object
   tweetID: string
   author: Author
+  token: AccessToken
 
 type TwitterThread = ref object of RootObj
   tweetID: string
@@ -20,7 +22,7 @@ type TwitterThread = ref object of RootObj
 # DateTime format string in ISO8601 format
 const dateFmt = "YYYY-MM-dd'T'hh:mm:ss'Z'"
 
-proc parseTweetUrl(url : string) : Option[ThreadRequest] =
+proc parseTweetUrl(url : string, token : AccessToken) : Option[ThreadRequest] =
   let path = url.parseUri.path
   var author : string
   var tweetID : int
@@ -28,7 +30,8 @@ proc parseTweetUrl(url : string) : Option[ThreadRequest] =
     some(
       ThreadRequest(
         tweetID : $tweetID,
-        author: Author(name: author)
+        author: Author(name: author),
+        token: token
       )
     )
   else:
@@ -123,19 +126,78 @@ proc insertThread(thread : TwitterThread) =
 
 # Routes
 
+# If using the web app:
+#   go to login link, log in, get redirected
+#   jwt generated (of access token and other info) and stored in httponly cookie, sent along with req to api endpoints
+#   api decodes it using secret
+#
+# If using api:
+#   generate your own oauth token and oauth secret
+#   pass to api
+#   api generates jwt (of access token and other info) and it is stored client side wherever client wants (filesystem, etc)
+#   it is sent along with req to api endpoints
+#   api decodes it using secret
+#
+# In both cases, expire tokens after n hours
+# When re-auth is needed, redirect the user for web app or return response code as appropriate (401 error) and let client refresh
+# need a way to get refresh tokens
+# should I only refresh when the underlying oauth access token expires?
+
+proc decodeToken(cookies: Table[string, string]) : Option[AccessToken] =
+  # take cookies, get jwt if it exists, and try to decode it
+  # this can definitely fail
+
+  if cookies.hasKey("twitterjwt"):
+    let token = cookies["twitterjwt"]
+    return token.decode
+  else:
+    none(AccessToken)
+
 router twitblog:
+  # TODO make me configurable
+  get "/tweetlog/auth":
+    let params = request.params
+    if not ("oauth_token" in params and "oauth_verifier" in params):
+      redirect getTokenRedirect()
+    else:
+      let oauth_token = params["oauth_token"]
+      let oauth_verifier = params["oauth_verifier"]
+      let access_tok = getAccessToken(oauth_token, oauth_verifier)
+
+      if access_tok.isSome:
+        echo "Setting cookie"
+
+        # XXX insecure for now
+        setCookie("twitterjwt", access_tok.get.generateJWT, domain="localhost", sameSite=Lax, path="/")
+
+        redirect("http://localhost:3030/")
+
+        #resp(200.HttpCode, $(%*{"jwt" : access_tok.get.generateJWT}), contentType="application/json")
+      else:
+        resp(500.HttpCode, $(%*{"error" : "Failed to create token"}), contentType="application/json")
+
   get "/":
     # Lists all authors
+    let token = request.cookies.decodeToken
+
+    if token.isNone:
+      redirect "/tweetlog/auth"
+
     let authors = allAuthors.toSeq
     let title = "Authors"
     resp authors.mainPage
 
   post "/thread":
+    let token = request.cookies.decodeToken
+
+    if token.isNone:
+      redirect "/tweetlog/auth"
+
     let params = request.params
     if not ("tweetURL" in params):
       resp "Invalid"
 
-    let threadURL = params["tweetURL"].parseTweetUrl
+    let threadURL = params["tweetURL"].parseTweetUrl(token.get)
 
     if threadURL.isSome:
       redirect (fmt"/thread/{threadURL.get.author}/status/{threadURL.get.tweetID}")
@@ -156,10 +218,14 @@ router twitblog:
     else:
       # Send it off to the rendering thread for processing
       # Let them know to check back later
+      let token = request.cookies.decodeToken
+      if token.isNone:
+        redirect "/tweetlog/auth"
       chan.send(
         ThreadRequest(
           tweetID: tweetID,
-          author: Author(name: author)
+          author: Author(name: author),
+          token: token.get
         )
       )
       resp checkBack()
@@ -170,12 +236,15 @@ router twitblog:
     let threads = toSeq(threadIDs(author))
     resp author.listThreads(threads)
 
+  get "/tweetlog/auth":
+    resp ""
+
 # Entry points
 
 proc startServer* =
   createTweetTables()
   defer: db.close()
-  let port = 8080.Port
+  let port = 3030.Port
   let settings = newSettings(port=port)
   var jester = initJester(twitblog, settings=settings)
   jester.serve()
@@ -185,10 +254,14 @@ proc handleRenders* =
   while true:
     let t : ThreadRequest = chan.recv()
 
+    echo t
+
     if threadExists(t.tweetID, t.author.name).isSome:
       continue
 
-    let tweets = t.tweetID.renderThread
+    let tweets = t.tweetID.renderThread(t.token)
+
+    echo $tweets
 
     if tweets.isSome:
       insertThread(
